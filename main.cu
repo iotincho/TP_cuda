@@ -5,6 +5,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include <device_functions.h>
 
 #define ARRAY_SIZE 1024
 #define TILE_WIDTH 64
@@ -16,19 +17,26 @@ inline void SWAP(int32_t *_a,int32_t *_b){int32_t _aux; _aux = *_a; *_a = *_b; *
 
 
 __global__
-void odd_even_sort_kernel(int32_t * arr, int32_t n){
-    int32_t tid = threadIdx.x + blockDim.x * blockIdx.x +1;// +1 corresponde para evitar el overflow en el 0
+void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
+    int32_t tid = blockDim.x * blockIdx.x + threadIdx.x + 1;// +1 corresponde para evitar el overflow en el 0
+    //int l;
+    //l= (n%2==0)? n/2: (n/2)+1;
 
-    if(tid < n-1){
-        for( int i=1 ; i<=n ;i++){
-        if(i%2){
-            if(arr[tid] < arr[tid-1])
-                SWAP(arr,arr-1);
+    for(int i=0; i<n;i++){
+        if(tid < n) {
+
+            if (tid%2) {
+                if (arr_d[tid] < arr_d[tid-1]) {
+                    SWAP(arr_d + tid, arr_d + tid - 1);
+                }
             }
-            else{
-                if(arr[tid] < arr[tid+1])
-                    SWAP(arr,arr+1);
+            __syncthreads();
+            if (!(tid%2)) {
+                if (arr_d[tid] < arr_d[tid-1]) {
+                    SWAP(arr_d + tid, arr_d + tid - 1);
+                }
             }
+            __syncthreads();
         }
     }
 }
@@ -37,30 +45,39 @@ void odd_even_sort_kernel(int32_t * arr, int32_t n){
 
 int main( int argc, char *argv[] ){
     int32_t arr[ARRAY_SIZE];
-    int32_t *cuda_arr;
+    int32_t *cuda_d;
 
-    dim3 dimGrid (ARRAY_SIZE/TILE_WIDTH +1, 1,1);
+    dim3 dimGrid ((uint)ceil(ARRAY_SIZE / TILE_WIDTH), 1, 1);
     dim3 dimBlock (TILE_WIDTH, 1, 1);
+    cudaError_t err;
 
     for (int i = 0; i < ARRAY_SIZE; i++) {
-    arr[i] = rand()%1000;
+        arr[i] = rand()%1000;
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+
+    err = cudaMalloc(&cuda_d, sizeof(int32_t)*ARRAY_SIZE);
+    if( err != cudaSuccess){
+        printf("%s in %s at line %d\n", cudaGetErrorString(err), __FILE__, __LINE__); // best definition
+        exit(EXIT_FAILURE);
     }
 
-    cudaMalloc(&cuda_arr, sizeof(int32_t)*ARRAY_SIZE);
-
-    cudaMemcpy(cuda_arr, arr, sizeof(int32_t)*ARRAY_SIZE, cudaMemcpyHostToDevice);
-
-    odd_even_sort_kernel<<<dimGrid, dimBlock>>>(cuda_arr, ARRAY_SIZE);
+    cudaMemcpy(cuda_d, arr, sizeof(int32_t)*ARRAY_SIZE, cudaMemcpyHostToDevice);
+    //for(int i=0; i<ARRAY_SIZE;i++)
+        odd_even_sort_kernel<<<dimGrid, dimBlock>>>(cuda_d, ARRAY_SIZE);
 
     cudaDeviceSynchronize();
 
-    cudaMemcpy(arr, cuda_arr, sizeof(int32_t)*ARRAY_SIZE, cudaMemcpyDeviceToHost);
+    cudaMemcpy(arr, cuda_d, sizeof(int32_t)*ARRAY_SIZE, cudaMemcpyDeviceToHost);
 
-    cudaFree(cuda_arr);
+    cudaFree(cuda_d);
 
     //printf("termine , primero = %i, %i, ultimo = %i",arr[0],arr[1],arr[ARRAY_SIZE -1]);
     for (int i = 0; i < ARRAY_SIZE; i++) {
-        printf("%i\n", arr[i]);
+        printf("%d ", arr[i]);
     }
+    printf("\n");
+
     return 0;
 }
