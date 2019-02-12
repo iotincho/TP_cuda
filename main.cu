@@ -13,18 +13,15 @@
 //#define IS_EVEN(_value_){return _value_ % 2;}
 
 __device__
-inline void SWAP(int32_t *_a,int32_t *_b){int32_t _aux; _aux = *_a; *_a = *_b; *_b = _aux;}
+inline void SWAP(int32_t *_a,int32_t *_b){int32_t __aux; __aux = *_a; *_a = *_b; *_b = __aux;}
 
 
 __global__
 void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
     int32_t tid = blockDim.x * blockIdx.x + threadIdx.x + 1;// +1 corresponde para evitar el overflow en el 0
-    //int l;
-    //l= (n%2==0)? n/2: (n/2)+1;
 
     for(int i=0; i<n;i++){
         if(tid < n) {
-
             if (tid%2) {
                 if (arr_d[tid] < arr_d[tid-1]) {
                     SWAP(arr_d + tid, arr_d + tid - 1);
@@ -64,8 +61,8 @@ int main( int argc, char *argv[] ){
     }
 
     cudaMemcpy(cuda_d, arr, sizeof(int32_t)*ARRAY_SIZE, cudaMemcpyHostToDevice);
-    //for(int i=0; i<ARRAY_SIZE;i++)
-        odd_even_sort_kernel<<<dimGrid, dimBlock>>>(cuda_d, ARRAY_SIZE);
+
+    odd_even_sort_kernel<<<dimGrid, dimBlock>>>(cuda_d, ARRAY_SIZE);
 
     cudaDeviceSynchronize();
 
@@ -73,7 +70,6 @@ int main( int argc, char *argv[] ){
 
     cudaFree(cuda_d);
 
-    //printf("termine , primero = %i, %i, ultimo = %i",arr[0],arr[1],arr[ARRAY_SIZE -1]);
     for (int i = 0; i < ARRAY_SIZE; i++) {
         printf("%d ", arr[i]);
     }
