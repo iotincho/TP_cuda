@@ -22,7 +22,7 @@ void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
 
     for(int i=0; i<n;i++){
         if(tid < n) {
-            if (tid%2) {
+            if (tid%2) { // porque usa tid? deberia usar i
                 if (arr_d[tid] < arr_d[tid-1]) {
                     SWAP(arr_d + tid, arr_d + tid - 1);
                 }
@@ -38,7 +38,28 @@ void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
     }
 }
 
+/*  PROPUESTA
 
+    int odd_even;
+    for(int i=0; i<n;i++){
+    	odd_even=(i%2)*2-1; // odd_even=1 si es impar, =-1 si es par,la idea es ahorrar un if
+        if(tid < n) {// puedo sacar este if fuera del for? seria mas efeiciente ejecutarlo una sola vez.
+            if (arr_d[tid] < arr_d[tid-1]) {
+               SWAP(arr_d + tid, arr_d + tid + odd_even);
+            }
+
+            __syncthreads(); // de esta otra forma es necesario?
+        }
+    }
+
+*/
+
+int control(int32_t *arr, int32_t *n){
+  for(int i=1;i<n;i++){
+    if(arr[i-1]>arr[i]) return 1;
+  }
+  return 0;
+}
 
 int main( int argc, char *argv[] ){
     int32_t arr[ARRAY_SIZE];
@@ -50,7 +71,7 @@ int main( int argc, char *argv[] ){
 
     for (int i = 0; i < ARRAY_SIZE; i++) {
         arr[i] = rand()%1000;
-        printf("%d ", arr[i]);
+      //  printf("%d ", arr[i]);
     }
     printf("\n");
 
@@ -70,9 +91,11 @@ int main( int argc, char *argv[] ){
 
     cudaFree(cuda_d);
 
-    for (int i = 0; i < ARRAY_SIZE; i++) {
+    if(control(arr)) printf("desordenado!! \n");
+    /*for (int i = 0; i < ARRAY_SIZE; i++) {
         printf("%d ", arr[i]);
     }
+    */
     printf("\n");
 
     return 0;
