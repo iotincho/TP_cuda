@@ -7,7 +7,7 @@
 #include <device_launch_parameters.h>
 #include <device_functions.h>
 
-#define ARRAY_SIZE 50000
+#define ARRAY_SIZE 20000
 #define TILE_WIDTH 128
 
 
@@ -24,22 +24,22 @@ void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
     int32_t t_position;
 
     for(int32_t j=0;j<j_limit;j++){
-    	t_position = position + (j&1)*blockDim.x/2;
-    	position_limit = n - (j&1)*blockDim.x/2;
+        t_position = position + (j&1)*blockDim.x;
+        position_limit = n - (j&1)*blockDim.x;
 
-		for(int32_t i=0; i<blockDim.x;i++){
-				if ((i&1) && t_position< position_limit-1 && tid < blockDim.x-1 ) { // impar
-					if (arr_d[t_position + 1] < arr_d[t_position]) {
-						SWAP(arr_d + t_position, arr_d + t_position + 1);
-					}
-				}
-				if(!(i&1) && t_position < position_limit && tid < blockDim.x){ //par
-					if (arr_d[t_position] < arr_d[t_position-1]) {
-						SWAP(arr_d + t_position, arr_d + t_position - 1);
-					}
-				}
-				__syncthreads();
-		}
+        for(int32_t i=0; i<blockDim.x;i++){
+                if ((i&1) && t_position< position_limit-1 && tid < blockDim.x*2-1 ) { // impar
+                    if (arr_d[t_position + 1] < arr_d[t_position]) {
+                        SWAP(arr_d + t_position, arr_d + t_position + 1);
+                    }
+                }
+                if(!(i&1) && t_position < position_limit && tid < blockDim.x*2){ //par
+                    if (arr_d[t_position] < arr_d[t_position-1]) {
+                        SWAP(arr_d + t_position, arr_d + t_position - 1);
+                    }
+                }
+                __syncthreads();
+        }
     }
 }
 
