@@ -7,10 +7,9 @@
 #include <device_launch_parameters.h>
 #include <device_functions.h>
 
-#define ARRAY_SIZE 12000
-#define TILE_WIDTH 64
+#define ARRAY_SIZE 50000
+#define TILE_WIDTH 128
 
-//#define IS_EVEN(_value_){return _value_ % 2;}
 
 __device__
 inline void SWAP(int32_t *_a,int32_t *_b){int32_t __aux; __aux = *_a; *_a = *_b; *_b = __aux;}
@@ -18,41 +17,33 @@ inline void SWAP(int32_t *_a,int32_t *_b){int32_t __aux; __aux = *_a; *_a = *_b;
 
 __global__
 void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
-    int32_t tid = (blockDim.x * blockIdx.x + threadIdx.x)*2 + 1;// +1 corresponde para evitar el overflow en el 0
+    int32_t position = (blockDim.x * blockIdx.x + threadIdx.x)*2 + 1;// +1 corresponde para evitar el overflow en el 0
+    int32_t tid = threadIdx.x;
+    int32_t j_limit = n*2/blockDim.x;
+    int32_t position_limit;
+    int32_t t_position;
 
-    for(int32_t i=0; i<n;i++){
+    for(int32_t j=0;j<j_limit;j++){
+    	t_position = position + (j&1)*blockDim.x/2;
+    	position_limit = n - (j&1)*blockDim.x/2;
 
-            if (i%2 && tid < n-1) { // impar
-                if (arr_d[tid + 1] < arr_d[tid]) {
-                    SWAP(arr_d + tid, arr_d + tid + 1);
-                }
-            }
-            __syncthreads();
-            if(!(i%2) && tid < n){ //par
-                if (arr_d[tid] < arr_d[tid-1]) {
-                    SWAP(arr_d + tid, arr_d + tid - 1);
-                }
-            }
-            __syncthreads();
-
+		for(int32_t i=0; i<blockDim.x;i++){
+				if ((i&1) && t_position< position_limit-1 && tid < blockDim.x-1 ) { // impar
+					if (arr_d[t_position + 1] < arr_d[t_position]) {
+						SWAP(arr_d + t_position, arr_d + t_position + 1);
+					}
+				}
+				if(!(i&1) && t_position < position_limit && tid < blockDim.x){ //par
+					if (arr_d[t_position] < arr_d[t_position-1]) {
+						SWAP(arr_d + t_position, arr_d + t_position - 1);
+					}
+				}
+				__syncthreads();
+		}
     }
 }
 
-/*  PROPUESTA
 
-    int odd_even;
-    for(int i=0; i<n;i++){
-    	odd_even=(i%2)*2-1; // odd_even=1 si es impar, =-1 si es par,la idea es ahorrar un if
-        if(tid < n) {// puedo sacar este if fuera del for? seria mas efeiciente ejecutarlo una sola vez.
-            if (arr_d[tid] < arr_d[tid-1]) {
-               SWAP(arr_d + tid, arr_d + tid + odd_even);
-            }
-
-            __syncthreads(); // de esta otra forma es necesario?
-        }
-    }
-
-*/
 __host__
 int control(int32_t *arr, int32_t n){
   for(int32_t i=1; i<n; i++){
@@ -69,7 +60,7 @@ int main( int argc, char *argv[] ){
     int32_t *cuda_d;
 
     dim3 dimGrid ((uint)((ARRAY_SIZE / TILE_WIDTH)+1), 1, 1);
-    dim3 dimBlock (TILE_WIDTH, 1, 1);
+    dim3 dimBlock (TILE_WIDTH-1, 1, 1);
     cudaError_t err;
 
     for (int i = 0; i < ARRAY_SIZE; i++) {
