@@ -11,8 +11,8 @@
 #define F1LO "_ODD_:"
 #define CTRL "_CRTL_:"
 
-#define ARRAY_SIZE 534577
-#define TILE_WIDTH 512
+#define ARRAY_SIZE 8*2048*3
+#define TILE_WIDTH 1024
 
 __device__
 inline void SWAP(int32_t *_a,int32_t *_b){int32_t __aux; __aux = *_a; *_a = *_b; *_b = __aux;}
@@ -55,7 +55,7 @@ void fast_odd_even_sort_kernel(int32_t * arr_d, int32_t n){
 
     sh_arr[tid]=arr_d[position];
     sh_arr[tid-1]=arr_d[position-1];
-
+    __syncthreads();
     for(int32_t i=0; i<blockDim.x;i++){
 
         if ((i&1) && position< n-1 && tid < blockDim.x*2-1 ) { // impar
@@ -68,10 +68,11 @@ void fast_odd_even_sort_kernel(int32_t * arr_d, int32_t n){
                     SWAP(sh_arr + tid, sh_arr + tid - 1);
                 }
             }
-                __syncthreads();
+            __syncthreads();
     }
+
     arr_d[position] = sh_arr[tid];
-    arr_d[position-1] = sh_arr[tid];
+    arr_d[position-1] = sh_arr[tid-1];
 }
 
 
@@ -89,7 +90,7 @@ void odd_even_sort(int32_t * arr, int32_t n){
 	cudaEvent_t start, stop;
 	float mili;
 
-	err = cudaMalloc(&cuda_d, sizeof(int32_t)*ARRAY_SIZE);
+	err = cudaMalloc((void**)&cuda_d, sizeof(int32_t)*ARRAY_SIZE);
 	if( err != cudaSuccess){
 		printf("%s in %s at line %d\n", cudaGetErrorString(err), __FILE__, __LINE__); // best definition
 		exit(EXIT_FAILURE);
@@ -124,8 +125,10 @@ void odd_even_sort(int32_t * arr, int32_t n){
 __host__
 void fast_odd_even_sort(int32_t * arr, int32_t n){
     int32_t *cuda_d;
+    //float tile = TILE_WIDTH , size_t = ARRAY_SIZE;
+    //dim3 dimGrid ((uint)ceil(size_t/tile), 1, 1);
     dim3 dimGrid ((uint)((ARRAY_SIZE / TILE_WIDTH)+1), 1, 1);
-    dim3 dimBlock (TILE_WIDTH-1, 1, 1);
+    dim3 dimBlock (TILE_WIDTH, 1, 1);
     cudaError_t err;
     cudaEvent_t start, stop;
     float mili;
@@ -212,10 +215,11 @@ int main( int argc, char *argv[] ){
     if(control(arr, ARRAY_SIZE)) printf("%s desordenado!! \n",MAIN);
     else printf("%s ok!! \n",MAIN);
 
-    odd_even_sort(arr,ARRAY_SIZE);
+    fast_odd_even_sort(arr,ARRAY_SIZE);
 
     if(control(arr, ARRAY_SIZE)) printf("%s desordenado!! \n",MAIN);
     else printf("%s ok!! \n" ,MAIN);
+    free(arr);
     printf("\n");
 
     return 0;
