@@ -11,7 +11,7 @@
 #define F1LO "_ODD_:"
 #define CTRL "_CRTL_:"
 
-#define ARRAY_SIZE 8*2048*3
+#define ARRAY_SIZE 1000000
 #define TILE_WIDTH 1024
 
 __device__
@@ -52,10 +52,13 @@ void fast_odd_even_sort_kernel(int32_t * arr_d, int32_t n){
     int32_t position = (blockDim.x * blockIdx.x + threadIdx.x)*2 + 1;// +1 corresponde para evitar el overflow en el 0
     int32_t tid = threadIdx.x*2+1;
     __shared__ int32_t sh_arr[2*TILE_WIDTH];
-
+    
+    if(position < n){
     sh_arr[tid]=arr_d[position];
     sh_arr[tid-1]=arr_d[position-1];
+    }
     __syncthreads();
+    
     for(int32_t i=0; i<blockDim.x;i++){
 
         if ((i&1) && position< n-1 && tid < blockDim.x*2-1 ) { // impar
@@ -70,9 +73,11 @@ void fast_odd_even_sort_kernel(int32_t * arr_d, int32_t n){
             }
             __syncthreads();
     }
-
-    arr_d[position] = sh_arr[tid];
-    arr_d[position-1] = sh_arr[tid-1];
+	
+    if(position<n){
+        arr_d[position] = sh_arr[tid];
+        arr_d[position-1] = sh_arr[tid-1];
+    }
 }
 
 
@@ -85,7 +90,7 @@ __host__
 void odd_even_sort(int32_t * arr, int32_t n){
 	int32_t *cuda_d;
 	dim3 dimGrid ((uint)((ARRAY_SIZE / TILE_WIDTH)+1), 1, 1);
-	dim3 dimBlock (TILE_WIDTH-1, 1, 1);
+	dim3 dimBlock (TILE_WIDTH, 1, 1);
 	cudaError_t err;
 	cudaEvent_t start, stop;
 	float mili;
@@ -197,8 +202,8 @@ int main( int argc, char *argv[] ){
     printf("\n");
 
     if(control(arr, ARRAY_SIZE)) printf("%s desordenado!! \n",MAIN);
-    else printf("%s ok!! \n",MAIN);
-
+    else printf("%s ok!! \n",MAIN);  
+        
     odd_even_sort(arr,ARRAY_SIZE);
 
     if(control(arr, ARRAY_SIZE)) printf("%s desordenado!! \n",MAIN);
@@ -219,6 +224,7 @@ int main( int argc, char *argv[] ){
 
     if(control(arr, ARRAY_SIZE)) printf("%s desordenado!! \n",MAIN);
     else printf("%s ok!! \n" ,MAIN);
+
     free(arr);
     printf("\n");
 
