@@ -11,8 +11,8 @@
 #define F1LO "_ODD_:"
 #define CTRL "_CRTL_:"
 
-#define ARRAY_SIZE 1000000
-#define TILE_WIDTH 1024
+#define ARRAY_SIZE 100000
+#define TILE_WIDTH 256
 
 __device__
 inline void SWAP(int32_t *_a,int32_t *_b){int32_t __aux; __aux = *_a; *_a = *_b; *_b = __aux;}
@@ -25,11 +25,8 @@ inline void SWAP(int32_t *_a,int32_t *_b){int32_t __aux; __aux = *_a; *_a = *_b;
 
 __global__
 void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
-    int32_t position = (blockDim.x * blockIdx.x + threadIdx.x)*2 + 1;// +1 corresponde para evitar el overflow en el 0
+    int32_t t_position = (blockDim.x * blockIdx.x + threadIdx.x)*2 + 1;// +1 corresponde para evitar el overflow en el 0
     int32_t tid = threadIdx.x*2+1;
-    int32_t t_position;
-    t_position = position;
-
 
         for(int32_t i=0; i<blockDim.x;i++){
 
@@ -52,31 +49,31 @@ void fast_odd_even_sort_kernel(int32_t * arr_d, int32_t n){
     int32_t position = (blockDim.x * blockIdx.x + threadIdx.x)*2 + 1;// +1 corresponde para evitar el overflow en el 0
     int32_t tid = threadIdx.x*2+1;
     __shared__ int32_t sh_arr[2*TILE_WIDTH];
+    int32_t bound = blockDim.x*2;
     
     if(position < n){
-    sh_arr[tid]=arr_d[position];
-    sh_arr[tid-1]=arr_d[position-1];
-    }
-    __syncthreads();
+    	*(sh_arr+tid)=*(arr_d+position);
+    	*(sh_arr+tid-1)=*(arr_d+position-1);
+    	__syncthreads();
     
-    for(int32_t i=0; i<blockDim.x;i++){
+    	for(int32_t i=0; i<blockDim.x;i++){
 
-        if ((i&1) && position< n-1 && tid < blockDim.x*2-1 ) { // impar
-            if (sh_arr[tid + 1] < sh_arr[tid]) {
-                    SWAP(sh_arr + tid, sh_arr + tid + 1);
+    		if ((i&1) && position< n-1 && tid < bound-1 ) { // impar
+    			if (*(sh_arr+tid + 1) < *(sh_arr+tid)) {
+    				SWAP(sh_arr + tid, sh_arr + tid + 1);
                 }
             }
-            if(!(i&1) && position < n && tid < blockDim.x*2){ //par
-                if (sh_arr[tid] < sh_arr[tid-1]) {
+
+    		if(!(i&1) && position < n && tid < bound){ //par
+                if (*(sh_arr+tid) < *(sh_arr+tid-1)) {
                     SWAP(sh_arr + tid, sh_arr + tid - 1);
                 }
             }
             __syncthreads();
-    }
-	
-    if(position<n){
-        arr_d[position] = sh_arr[tid];
-        arr_d[position-1] = sh_arr[tid-1];
+    	}
+
+    	*(arr_d+position) = *(sh_arr+tid);
+    	*(arr_d+position-1) = *(sh_arr+tid-1);
     }
 }
 
@@ -192,7 +189,7 @@ int main( int argc, char *argv[] ){
     
     arr = (int32_t*)malloc(sizeof(int32_t)*ARRAY_SIZE);
     
-    printf("array size: %d\n",ARRAY_SIZE);
+    printf("array size: %d tile: %d\n",ARRAY_SIZE, TILE_WIDTH);
 
     printf("####   SORT WHIT GLOBAL MEMORY   ####\n" );
     for (int i = 0; i < ARRAY_SIZE; i++) {
