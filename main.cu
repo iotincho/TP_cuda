@@ -12,7 +12,8 @@
 #define CTRL "_CRTL_:"
 
 #define ARRAY_SIZE 100000
-#define TILE_WIDTH 256
+#define TILE_WIDTH 128
+#define DEVICE 1 //device 0 o 1
 
 __device__
 inline void SWAP(int32_t *_a,int32_t *_b){int32_t __aux; __aux = *_a; *_a = *_b; *_b = __aux;}
@@ -27,16 +28,16 @@ __global__
 void odd_even_sort_kernel(int32_t * arr_d, int32_t n){
     int32_t t_position = (blockDim.x * blockIdx.x + threadIdx.x)*2 + 1;// +1 corresponde para evitar el overflow en el 0
     int32_t tid = threadIdx.x*2+1;
-
-        for(int32_t i=0; i<blockDim.x;i++){
+    int32_t i_limit = blockDim.x*2;
+        for(int32_t i=0; i<i_limit;i++){
 
         	if ((i&1) && t_position< n-1 && tid < blockDim.x*2-1 ) { // impar
-                    if (arr_d[t_position + 1] < arr_d[t_position]) {
+                    if (*(arr_d+t_position + 1) < *(arr_d+t_position)) {
                         SWAP(arr_d + t_position, arr_d + t_position + 1);
                     }
                 }
                 if(!(i&1) && t_position < n && tid < blockDim.x*2){ //par
-                    if (arr_d[t_position] < arr_d[t_position-1]) {
+                    if (*(arr_d+t_position) < *(arr_d+t_position-1)) {
                         SWAP(arr_d + t_position, arr_d + t_position - 1);
                     }
                 }
@@ -50,13 +51,14 @@ void fast_odd_even_sort_kernel(int32_t * arr_d, int32_t n){
     int32_t tid = threadIdx.x*2+1;
     __shared__ int32_t sh_arr[2*TILE_WIDTH];
     int32_t bound = blockDim.x*2;
-    
+    int32_t i_limit = blockDim.x*2;
+
     if(position < n){
     	*(sh_arr+tid)=*(arr_d+position);
     	*(sh_arr+tid-1)=*(arr_d+position-1);
     	__syncthreads();
     
-    	for(int32_t i=0; i<blockDim.x;i++){
+    	for(int32_t i=0; i<i_limit;i++){
 
     		if ((i&1) && position< n-1 && tid < bound-1 ) { // impar
     			if (*(sh_arr+tid + 1) < *(sh_arr+tid)) {
@@ -102,7 +104,7 @@ void odd_even_sort(int32_t * arr, int32_t n){
 
 	cudaMemcpy(cuda_d, arr, sizeof(int32_t)*ARRAY_SIZE, cudaMemcpyHostToDevice);
 
-	int32_t j_limit = n*2/TILE_WIDTH;
+	int32_t j_limit = n/TILE_WIDTH+1;
 	int32_t *p_cuda;
 	int32_t size;
 
@@ -145,7 +147,7 @@ void fast_odd_even_sort(int32_t * arr, int32_t n){
 
     cudaMemcpy(cuda_d, arr, sizeof(int32_t)*ARRAY_SIZE, cudaMemcpyHostToDevice);
 
-    int32_t j_limit = n*2/TILE_WIDTH;
+    int32_t j_limit = n/TILE_WIDTH+1;
     int32_t *p_cuda;
     int32_t size;
 
@@ -187,16 +189,28 @@ int control(int32_t *arr, int32_t n){
 int main( int argc, char *argv[] ){
     int32_t *arr;
     
+    cudaError_t err;
     arr = (int32_t*)malloc(sizeof(int32_t)*ARRAY_SIZE);
     
     printf("array size: %d tile: %d\n",ARRAY_SIZE, TILE_WIDTH);
 
     printf("####   SORT WHIT GLOBAL MEMORY   ####\n" );
     for (int i = 0; i < ARRAY_SIZE; i++) {
-        arr[i] = rand()%1000;
+        arr[i] = rand()%1000+1;
       //  printf("%d ", arr[i]);
     }
+    arr[0]=1001;
+    arr[ARRAY_SIZE-1]=0;    
+
     printf("\n");
+
+    err = cudaSetDevice(DEVICE);
+    if( err != cudaSuccess){
+        printf("%s in %s at line %d\n", cudaGetErrorString(err), __FILE__, __LINE__); // best definition
+        exit(EXIT_FAILURE);
+    }
+
+
 
     if(control(arr, ARRAY_SIZE)) printf("%s desordenado!! \n",MAIN);
     else printf("%s ok!! \n",MAIN);  
